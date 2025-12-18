@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Cosmic Birth Chart - Final Fast</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px; width: 260px;
+            padding: 20px; background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333; border-left: 3px solid #FF9ABF;
+            color: #E0F7FA; z-index: 100;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 { font-size: 14px; margin: 0 0 15px 0; color: #FF9ABF; letter-spacing: 2px; font-weight: 700; }
+        .section-title { font-size: 10px; color: #666; margin: 10px 0 5px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 2px;}
+        
+        input, select {
+            width: 100%; margin-bottom: 8px; background: rgba(255,255,255,0.08);
+            border: 1px solid #444; color: #fff; padding: 6px; outline: none;
+            box-sizing: border-box; font-size: 11px;
+        }
+        select { cursor: pointer; }
+        option { background: #000; color: #fff; } 
+        input:focus, select:focus { border-color: #FF9ABF; background: rgba(255,154,191,0.1); }
+
+        .row { display: flex; gap: 5px; }
+        
+        button {
+            width: 100%; padding: 12px; margin-top: 10px; background: rgba(255, 154, 191, 0.15);
+            border: 1px solid #FF9ABF; color: #FF9ABF; cursor: pointer;
+            font-size: 12px; font-weight: bold; letter-spacing: 1px; transition: 0.2s;
+        }
+        button:hover { background: #FF9ABF; color: #000; box-shadow: 0 0 15px rgba(255,154,191,0.5); }
+
+        #status { margin-top: 10px; font-size: 10px; color: #888; text-align: center; }
+
+        .planet-label {
+            position: absolute; color: rgba(255,255,255,0.9); font-size: 10px;
+            font-weight: 500; letter-spacing: 0.5px; pointer-events: none;
+            transform: translate(-50%, -150%); text-shadow: 1px 1px 2px #000;
+            white-space: nowrap; transition: opacity 0.2s;
+        }
+        .planet-label::after {
+            content: ''; display: block; width: 1px; height: 10px;
+            background: rgba(255,255,255,0.2); margin: 2px auto 0;
+        }
+
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #FF9ABF;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+</head>
+<body>
+    <div id="loader">
+        <div style="font-size: 20px; letter-spacing: 5px; margin-bottom: 10px;">SYSTEM LOADING</div>
+    </div>
+
+    <div id="labels-container"></div>
+
+    <div id="ui-panel">
+        <h1>BIRTH CHART ENGINE</h1>
+        
+        <div class="section-title">TIME</div>
+        <input type="date" id="dateInput" value="2000-01-01">
+        <div class="row">
+            <input type="time" id="timeInput" value="12:00">
+            <input type="text" value="UTC+8" disabled style="background:none; border:none; text-align:right; color:#666;">
+        </div>
+
+        <div class="section-title">LOCATION</div>
+        <select id="countrySelect" onchange="updateProvinces()">
+            <option value="CN">China</option>
+            <option value="US">USA</option>
+        </select>
+        <select id="provinceSelect">
+            <!-- JS填充 -->
+        </select>
+
+        <button onclick="generateMap()">GENERATE</button>
+        <div id="status">READY</div>
+    </div>
+
+    <script>
+        const locationData = {
+            CN: ["北京市", "上海市", "广东省", "浙江省", "江苏省", "四川省", "湖北省", "福建省", "山东省", "陕西省", "湖南省", "安徽省", "黑龙江省", "辽宁省", "吉林省", "河北省", "河南省", "云南省", "广西", "海南省", "江西省", "贵州省", "山西省", "内蒙古", "宁夏", "青海省", "西藏", "新疆", "甘肃省", "台湾省", "香港", "澳门"],
+            US: ["California", "New York", "Texas", "Florida", "Washington", "Illinois", "Pennsylvania", "Ohio"]
+        };
+
+        function updateProvinces() {
+            const country = document.getElementById("countrySelect").value;
+            const provSelect = document.getElementById("provinceSelect");
+            provSelect.innerHTML = "";
+            locationData[country].forEach(p => {
+                const opt = document.createElement("option");
+                opt.value = p; opt.text = p;
+                provSelect.add(opt);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            updateProvinces();
+            document.getElementById('provinceSelect').value = '上海市';
+        });
+
+        let scene, camera, renderer, composer, controls;
+        let bodies = []; 
+        let isAnimating = false;
+        let earthObj = null; 
+        
+        window.onload = function() {
+            if (typeof THREE === 'undefined') { return; }
+            init();
+            document.getElementById('loader').style.display = 'none';
+        };
+
+        const celestialData = [
+            { name:"MERCURY", color: 0xB1E4FF, dist: 12, size: 0.8, speed: 4.1 },
+            { name:"VENUS",   color: 0xE0F7FA, dist: 18, size: 1.2, speed: 1.6 },
+            { name:"EARTH",   color: 0x2A22F9, dist: 26, size: 1.3, speed: 1.0 },
+            { name:"MARS",    color: 0xFF4500, dist: 34, size: 1.1, speed: 0.53 },
+            { name:"JUPITER", color: 0xFFF1A1, dist: 50, size: 4.0, speed: 0.08 },
+            { name:"SATURN",  color: 0xDCC584, dist: 70, size: 3.5, speed: 0.03, ring: true },
+            { name:"URANUS",  color: 0x00E5FF, dist: 90, size: 2.5, speed: 0.01 },
+            { name:"NEPTUNE", color: 0x311B92, dist: 110, size: 2.4, speed: 0.006 },
+            { name:"PLUTO",   color: 0x90A4AE, dist: 130, size: 0.6, speed: 0.004 }
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.001);
+
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 120, 160);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.15; // 修正: 速度提升3倍 (0.05 -> 0.15)
+
+            const renderScene = new THREE.RenderPass(scene, camera);
+            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.0; 
+            bloomPass.strength = 1.2; 
+            bloomPass.radius = 0.6;
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            createUniverse();
+            animate();
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function createUniverse() {
+            const sunColor = 0xFFFEF0; 
+            const sunGeo = new THREE.SphereGeometry(6, 64, 64);
+            const sun = new THREE.Mesh(sunGeo, new THREE.MeshBasicMaterial({ color: sunColor })); 
+            scene.add(sun);
+            
+            // 修正：彻底移除所有光晕 (No Glows)
+            
+            addLabel("SUN", sunColor, sun);
+
+            celestialData.forEach(data => createPlanet(data));
+
+            // Moon
+            const moonMesh = new THREE.Mesh(
+                new THREE.SphereGeometry(0.5, 16, 16),
+                new THREE.MeshBasicMaterial({color: 0xFFFFFF}) 
+            );
+            scene.add(moonMesh);
+            const moonObj = { mesh: moonMesh, type: 'MOON', angle: 0, targetAngle: 0, distToEarth: 3.5 };
+            bodies.push(moonObj);
+            addLabel("MOON", 0xFFFFFF, moonMesh);
+
+            // ASC
+            const ascColor = 0xFF9ABF;
+            const ascMarker = new THREE.Group();
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 4), new THREE.MeshBasicMaterial({color: ascColor}));
+            cone.rotation.x = Math.PI/2;
+            ascMarker.add(cone);
+            
+            const ascOrbit = new THREE.Mesh(
+                new THREE.RingGeometry(24.95, 25.05, 128),
+                new THREE.MeshBasicMaterial({color: ascColor, side: THREE.DoubleSide, transparent:true, opacity:0.4})
+            );
+            ascOrbit.rotation.x = Math.PI/2;
+            scene.add(ascOrbit);
+
+            scene.add(ascMarker);
+            bodies.push({ mesh: ascMarker, type: 'ASC', data: { dist: 25 }, angle: 0, targetAngle: 0 });
+            addLabel("ASC", ascColor, ascMarker);
+
+            // Stars
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = [];
+            for(let i=0; i<8000; i++) {
+                starPos.push((Math.random()-0.5)*1200, (Math.random()-0.5)*1200, (Math.random()-0.5)*1200);
+            }
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+            const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xFFFFFF, size: 1.2, transparent: true, opacity: 0.8}));
+            scene.add(stars);
+        }
+
+        function createPlanet(data) {
+            const orbit = new THREE.Mesh(
+                new THREE.RingGeometry(data.dist-0.05, data.dist+0.05, 128),
+                new THREE.MeshBasicMaterial({color: 0x666666, side: THREE.DoubleSide, transparent:true, opacity:0.5})
+            );
+            orbit.rotation.x = Math.PI/2;
+            scene.add(orbit);
+
+            const mat = new THREE.MeshBasicMaterial({ color: data.color });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(data.size, 32, 32), mat);
+            
+            if(data.ring) {
+                const ring = new THREE.Mesh(new THREE.RingGeometry(data.size*1.4, data.size*2.2, 32),
+                new THREE.MeshBasicMaterial({color: data.color, side:THREE.DoubleSide, transparent:true, opacity:0.3}));
+                ring.rotation.x = Math.PI/2;
+                mesh.add(ring);
+            }
+
+            scene.add(mesh);
+            
+            const body = { mesh: mesh, type: 'PLANET', data: data, angle: Math.random()*6.28, targetAngle: 0 };
+            bodies.push(body);
+            addLabel(data.name, data.color, mesh);
+
+            if (data.name === 'EARTH') earthObj = body;
+        }
+
+        function addLabel(text, color, mesh) {
+            const div = document.createElement('div');
+            div.className = 'planet-label';
+            div.textContent = text;
+            div.style.color = '#' + new THREE.Color(color).getHexString();
+            document.getElementById('labels-container').appendChild(div);
+            if(!mesh.userData) mesh.userData = {};
+            mesh.userData.label = div;
+        }
+
+        window.generateMap = function() {
+            const dateStr = document.getElementById('dateInput').value;
+            const timeStr = document.getElementById('timeInput').value;
+            const statusDiv = document.getElementById('status');
+            const province = document.getElementById('provinceSelect').value;
+
+            if(!dateStr || !timeStr) return;
+            statusDiv.innerText = `CALCULATING...`;
+            
+            const fullDateStr = `${dateStr}T${timeStr}:00`;
+            const baseTime = new Date("2000-01-01T00:00:00").getTime();
+            const targetTime = new Date(fullDateStr).getTime();
+            const daysDiff = (targetTime - baseTime) / (1000 * 3600 * 24); 
+            const yearsDiff = daysDiff / 365.25;
+
+            bodies.forEach(body => {
+                if (body.type === 'PLANET') {
+                    const seed = body.data.name.charCodeAt(0); 
+                    body.targetAngle = seed + (yearsDiff * body.data.speed * Math.PI * 2);
+                } 
+                else if (body.type === 'MOON') {
+                    body.targetAngle = (daysDiff / 27.32) * Math.PI * 2;
+                }
+                else if (body.type === 'ASC') {
+                    body.targetAngle = daysDiff * (Math.PI * 2) * 1.0027; 
+                }
+            });
+
+            isAnimating = true;
+            controls.autoRotateSpeed = 2.0; 
+            setTimeout(() => {
+                controls.autoRotateSpeed = 0.15; // 修正: 恢复速度也是 3x
+                statusDiv.innerText = `CHART: ${province}`;
+            }, 1000);
+        };
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(isAnimating) {
+                let allDone = true;
+                bodies.forEach(body => {
+                    if(body.targetAngle !== undefined) {
+                        const diff = body.targetAngle - body.angle;
+                        if(Math.abs(diff) > 0.001) {
+                            body.angle += diff * 0.05;
+                            allDone = false;
+                        }
+                    }
+                });
+                if(allDone) isAnimating = false;
+            }
+
+            bodies.forEach(body => {
+                if (body.type === 'PLANET' || body.type === 'ASC') {
+                    const r = body.data.dist;
+                    body.mesh.position.x = Math.cos(body.angle) * r;
+                    body.mesh.position.z = Math.sin(body.angle) * r;
+                }
+                else if (body.type === 'MOON' && earthObj) {
+                    const earthX = earthObj.mesh.position.x;
+                    const earthZ = earthObj.mesh.position.z;
+                    body.mesh.position.x = earthX + Math.cos(body.angle) * body.distToEarth;
+                    body.mesh.position.z = earthZ + Math.sin(body.angle) * body.distToEarth;
+                }
+            });
+
+            bodies.forEach(body => {
+                const mesh = body.mesh; 
+                const label = mesh.userData.label;
+                if(label) {
+                    const tempV = new THREE.Vector3();
+                    mesh.getWorldPosition(tempV);
+                    tempV.project(camera);
+                    
+                    if(Math.abs(tempV.z) > 1) {
+                        label.style.opacity = 0;
+                    } else {
+                        const x = (tempV.x * .5 + .5) * window.innerWidth;
+                        const y = (tempV.y * -.5 + .5) * window.innerHeight;
+                        label.style.opacity = 1;
+                        label.style.left = x + 'px';
+                        label.style.top = y + 'px';
+                    }
+                }
+            });
+            controls.update();
+            composer.render();
+        }
+    </script>
+</body>
+</html>
